@@ -1,19 +1,23 @@
 
 
-import React, { useState, useContext } from 'react';
+import React, { useState, useContext, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Image, Alert, StyleSheet, ActivityIndicator } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useReports } from './ReportsContext';
 import { createReport } from './services/api';
+// Cloudinary config (replace with your own values)
+const CLOUDINARY_URL = 'https://api.cloudinary.com/v1_1/dr38uuama/image/upload';
+const CLOUDINARY_UPLOAD_PRESET = 'test_sih';
 import Loader from './Loader';
-import { AuthContext } from '../App.js';
+import { AuthContext } from '../App';
 
 export default function CreateReportScreen({ navigation }) {
   const [photo, setPhoto] = useState(null);
   const [description, setDescription] = useState('');
   const [location, setLocation] = useState(null);
+  const [address, setAddress] = useState('');
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
   const { reports, setReports } = useReports();
@@ -33,30 +37,68 @@ export default function CreateReportScreen({ navigation }) {
       quality: 1,
     });
     console.log('Camera result:', result);
-    setLoadingPhoto(false);
     if (!result.cancelled) {
       let photoUri = result.uri || (result.assets && result.assets[0] && result.assets[0].uri);
-      setPhoto(photoUri);
-      console.log('Photo URI set:', photoUri);
+      // Upload to Cloudinary
+      try {
+        let formData = new FormData();
+        formData.append('file', {
+          uri: photoUri,
+          type: 'image/jpeg',
+          name: 'report.jpg',
+        });
+        formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+        const res = await fetch(CLOUDINARY_URL, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (data.secure_url) {
+          setPhoto(data.secure_url);
+          console.log('Cloudinary URL:', data.secure_url);
+        } else {
+          Alert.alert('Upload failed', 'Could not upload image.');
+        }
+      } catch (err) {
+        Alert.alert('Upload error', 'Could not upload image.');
+      }
     } else {
       console.log('Camera cancelled');
     }
+    setLoadingPhoto(false);
   };
 
-  const getLocation = async () => {
-    setLoadingLocation(true);
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    console.log('Location permission status:', status);
-    if (status !== 'granted') {
-      Alert.alert('Permission denied', 'Location permission is required.');
+  // Automatically fetch location on mount
+  useEffect(() => {
+    const fetchLocation = async () => {
+      setLoadingLocation(true);
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      console.log('Location permission status:', status);
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required.');
+        setLoadingLocation(false);
+        return;
+      }
+      let loc = await Location.getCurrentPositionAsync({});
+      console.log('Location result:', loc);
+      setLocation(loc.coords);
+      // Fetch address using reverse geocoding
+      try {
+        let geo = await Location.reverseGeocodeAsync({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
+        if (geo && geo.length > 0) {
+          const g = geo[0];
+          const addr = `${g.name ? g.name + ', ' : ''}${g.street ? g.street + ', ' : ''}${g.city ? g.city + ', ' : ''}${g.region ? g.region + ', ' : ''}${g.postalCode ? g.postalCode + ', ' : ''}${g.country || ''}`;
+          setAddress(addr);
+        } else {
+          setAddress('Address not found');
+        }
+      } catch {
+        setAddress('Address not found');
+      }
       setLoadingLocation(false);
-      return;
-    }
-    let loc = await Location.getCurrentPositionAsync({});
-    console.log('Location result:', loc);
-    setLocation(loc.coords);
-    setLoadingLocation(false);
-  };
+    };
+    fetchLocation();
+  }, []);
 
   const [loadingSubmit, setLoadingSubmit] = useState(false);
 
@@ -119,14 +161,16 @@ export default function CreateReportScreen({ navigation }) {
 
         <View style={styles.section}>
           <Text style={styles.label}>Location</Text>
-          <TouchableOpacity style={styles.actionBtn} onPress={getLocation} activeOpacity={0.8}>
-            <MaterialCommunityIcons name="crosshairs-gps" size={24} color="#fff" />
-            <Text style={styles.actionBtnText}>Detect Location</Text>
-          </TouchableOpacity>
-          {location && (
-            <Text style={styles.locationText}>Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}</Text>
+          {location ? (
+            <>
+              <Text style={styles.locationText}>Lat: {location.latitude.toFixed(4)}, Lon: {location.longitude.toFixed(4)}</Text>
+              <Text style={styles.addressText}>{address}</Text>
+            </>
+          ) : (
+            <Text style={styles.locationText}>Detecting location...</Text>
           )}
         </View>
+
 
         <View style={styles.section}>
           <Text style={styles.label}>Description</Text>
@@ -241,6 +285,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 8,
+  },
+    addressText: {
+    fontSize: 15,
+    color: '#555',
+    marginTop: 4,
   },
 });
 

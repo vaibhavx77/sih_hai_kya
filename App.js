@@ -10,14 +10,35 @@ import CreateReportScreen from './screens/CreateReportScreen';
 import MapViewScreen from './screens/MapViewScreen';
 import MyReportsScreen from './screens/MyReportsScreen';
 import { ReportsProvider } from './screens/ReportsContext';
-import React, { createContext, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const AuthContext = createContext();
 
 function AuthProvider({ children }) {
   const [user, setUser] = useState(null); // { userId, token }
+  useEffect(() => {
+    // Load user from AsyncStorage on app start
+    const loadUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) setUser(JSON.parse(userData));
+      } catch {}
+    };
+    loadUser();
+  }, []);
+
+  const setUserAndPersist = async (userObj) => {
+    setUser(userObj);
+    if (userObj) {
+      await AsyncStorage.setItem('user', JSON.stringify(userObj));
+    } else {
+      await AsyncStorage.removeItem('user');
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
+    <AuthContext.Provider value={{ user, setUser: setUserAndPersist }}>
       {children}
     </AuthContext.Provider>
   );

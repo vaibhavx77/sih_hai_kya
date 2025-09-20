@@ -1,12 +1,20 @@
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useContext } from 'react';
+import { View, Text, StyleSheet, Button } from 'react-native';
+import { AuthContext } from '../App';
 
-export default function ProfileScreen() {
+
+export default function ProfileScreen({ navigation }) {
+  const { setUser } = useContext(AuthContext);
+  const handleLogout = async () => {
+    await setUser(null); // This will clear AsyncStorage in AuthProvider
+    // Optionally, navigate to LoginScreen if using navigation
+    // if (navigation) navigation.replace('Login');
+  };
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Profile Screen</Text>
-      {/* Add more profile details here as needed */}
+      <Button title="Logout" onPress={handleLogout} color="#d9534f" />
     </View>
   );
 }
