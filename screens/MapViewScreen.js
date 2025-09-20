@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { useReports } from './ReportsContext';
+// import { useReports } from './ReportsContext';
+import { getAllReports } from './services/api';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Loader from './Loader';
 
@@ -12,7 +13,8 @@ export default function MapViewScreen({ navigation }) {
   const [selectedReport, setSelectedReport] = useState(null);
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(true);
-  const { reports } = useReports();
+  const [reports, setReports] = useState([]);
+  const [loadingReports, setLoadingReports] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -28,12 +30,24 @@ export default function MapViewScreen({ navigation }) {
     })();
   }, []);
 
+  useEffect(() => {
+    setLoadingReports(true);
+    getAllReports()
+      .then((data) => {
+        setReports(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        Alert.alert('Error', 'Failed to fetch reports from server.');
+      })
+      .finally(() => setLoadingReports(false));
+  }, []);
+
   const handleFabPress = () => {
     navigation.navigate('CreateReport');
   };
 
-  if (loading) {
-    return <Loader message="Getting your location..." />;
+  if (loading || loadingReports) {
+    return <Loader message={loading ? 'Getting your location...' : 'Loading reports...'} />;
   }
 
   return (
@@ -51,7 +65,7 @@ export default function MapViewScreen({ navigation }) {
         >
           {reports.map((report) => (
             <Marker
-              key={report.id}
+              key={report._id}
               coordinate={report.location}
               title={report.description}
               onPress={() => setSelectedReport(report)}
@@ -69,8 +83,8 @@ export default function MapViewScreen({ navigation }) {
             <Text style={styles.modalText}>Description: {selectedReport?.description}</Text>
             <Text style={styles.modalText}>Status: {selectedReport?.status}</Text>
             <Text style={styles.modalText}>Location: {selectedReport?.location.latitude.toFixed(4)}, {selectedReport?.location.longitude.toFixed(4)}</Text>
-            {selectedReport?.photo && (
-              <Image source={{ uri: selectedReport.photo }} style={styles.modalImage} />
+            {selectedReport?.photoUrl && (
+              <Image source={{ uri: selectedReport.photoUrl }} style={styles.modalImage} />
             )}
             <TouchableOpacity onPress={() => setSelectedReport(null)} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>Close</Text>

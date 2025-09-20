@@ -10,7 +10,18 @@ import CreateReportScreen from './screens/CreateReportScreen';
 import MapViewScreen from './screens/MapViewScreen';
 import MyReportsScreen from './screens/MyReportsScreen';
 import { ReportsProvider } from './screens/ReportsContext';
+import React, { createContext, useState } from 'react';
 
+export const AuthContext = createContext();
+
+function AuthProvider({ children }) {
+  const [user, setUser] = useState(null); // { userId, token }
+  return (
+    <AuthContext.Provider value={{ user, setUser }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -43,15 +54,17 @@ function MainTabs() {
 
 export default function App() {
   return (
-    <ReportsProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </ReportsProvider>
+    <AuthProvider>
+      <ReportsProvider>
+        <NavigationContainer>
+          <Stack.Navigator initialRouteName="Login" screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </ReportsProvider>
+    </AuthProvider>
   );
 }
 
