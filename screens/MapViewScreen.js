@@ -1,46 +1,79 @@
 
-import React, { useState } from 'react';
-import { View, Text, Modal, Image, TouchableOpacity } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import styles from './MapViewScreen.module.css';
-import { useReports } from './ReportsContext';
 
-export default function MapViewScreen() {
+import React, { useState, useEffect } from 'react';
+import { View, Text, Modal, Image, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import MapView, { Marker } from 'react-native-maps';
+import * as Location from 'expo-location';
+import { useReports } from './ReportsContext';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Loader from './Loader';
+
+export default function MapViewScreen({ navigation }) {
   const [selectedReport, setSelectedReport] = useState(null);
+  const [location, setLocation] = useState(null);
+  const [loading, setLoading] = useState(true);
   const { reports } = useReports();
 
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to show your position on the map.');
+        setLoading(false);
+        return;
+      }
+      let loc = await Location.getCurrentPositionAsync({});
+      setLocation(loc.coords);
+      setLoading(false);
+    })();
+  }, []);
+
+  const handleFabPress = () => {
+    navigation.navigate('CreateReport');
+  };
+
+  if (loading) {
+    return <Loader message="Getting your location..." />;
+  }
+
   return (
-    <View style={{ flex: 1 }}>
-      <MapView
-        style={{ flex: 1 }}
-        initialRegion={{
-          latitude: 28.6139,
-          longitude: 77.209,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-      >
-        {reports.map((report) => (
-          <Marker
-            key={report.id}
-            coordinate={report.location}
-            title={report.description}
-            onPress={() => setSelectedReport(report)}
-          />
-        ))}
-      </MapView>
+    <View style={styles.container}>
+      {location && (
+        <MapView
+          style={styles.map}
+          initialRegion={{
+            latitude: location.latitude,
+            longitude: location.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          showsUserLocation={true}
+        >
+          {reports.map((report) => (
+            <Marker
+              key={report.id}
+              coordinate={report.location}
+              title={report.description}
+              onPress={() => setSelectedReport(report)}
+            />
+          ))}
+        </MapView>
+      )}
+      <TouchableOpacity style={styles.fab} onPress={handleFabPress} activeOpacity={0.8}>
+        <MaterialCommunityIcons name="plus" size={32} color="#fff" />
+      </TouchableOpacity>
       <Modal visible={!!selectedReport} transparent animationType="slide">
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#00000099' }}>
-          <View style={{ backgroundColor: '#fff', padding: 20, borderRadius: 10, width: '80%' }}>
-            <Text style={{ fontWeight: 'bold', fontSize: 16 }}>Report Details</Text>
-            <Text>Description: {selectedReport?.description}</Text>
-            <Text>Status: {selectedReport?.status}</Text>
-            <Text>Location: {selectedReport?.location.latitude.toFixed(4)}, {selectedReport?.location.longitude.toFixed(4)}</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Report Details</Text>
+            <Text style={styles.modalText}>Description: {selectedReport?.description}</Text>
+            <Text style={styles.modalText}>Status: {selectedReport?.status}</Text>
+            <Text style={styles.modalText}>Location: {selectedReport?.location.latitude.toFixed(4)}, {selectedReport?.location.longitude.toFixed(4)}</Text>
             {selectedReport?.photo && (
-              <Image source={{ uri: selectedReport.photo }} style={{ width: 200, height: 150, marginVertical: 10 }} />
+              <Image source={{ uri: selectedReport.photo }} style={styles.modalImage} />
             )}
-            <TouchableOpacity onPress={() => setSelectedReport(null)} style={{ marginTop: 10 }}>
-              <Text style={{ color: 'blue' }}>Close</Text>
+            <TouchableOpacity onPress={() => setSelectedReport(null)} style={styles.closeButton}>
+              <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -48,3 +81,74 @@ export default function MapViewScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f7f7f7',
+  },
+  map: {
+    flex: 1,
+  },
+  fab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 32,
+    backgroundColor: '#007bff',
+    borderRadius: 32,
+    width: 56,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#00000099',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: '80%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalTitle: {
+    fontWeight: 'bold',
+    fontSize: 18,
+    marginBottom: 10,
+    color: '#222',
+  },
+  modalText: {
+    fontSize: 15,
+    marginBottom: 6,
+    color: '#444',
+  },
+  modalImage: {
+    width: 200,
+    height: 150,
+    marginVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  closeButton: {
+    marginTop: 12,
+    alignSelf: 'flex-end',
+  },
+  closeButtonText: {
+    color: 'blue',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+});
